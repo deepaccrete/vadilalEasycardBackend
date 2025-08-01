@@ -6,8 +6,6 @@ const router = express.Router();
 
 router.get('/getAllUsers',jwtMiddleware, user.getAllUsers);
 router.post('/userRegister',jwtMiddleware,user.userRegister);
-router.post('/updateUser', jwtMiddleware, user.updateUser);
-router.post('/deleteUser/:userid', jwtMiddleware, user.deleteUser);
 // router.get('/userLogout', authMiddleware, user.userLogout);
 
 module.exports = {

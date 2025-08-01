@@ -5,7 +5,6 @@ const { refreshAccessToken } = require("../utils/jwtToken.utils");
 const router = express.Router();
 
 router.post('/login', auth.userLogin);
-router.post('/adminlogin', auth.userLogin);
 router.get('/logout', authMiddleware, auth.userLogout);
 
 module.exports = {

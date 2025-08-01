@@ -27,7 +27,7 @@ module.exports = {
     },
 
     insertcardbase65: async (base64Images, info) => {
-        let res = await db.getResults(`INSERT INTO cardmaster (cardfronts3url,cardbacks3url, createdby, createdat)
+        let res = await db.getResults(`INSERT INTO cardmaster (cardfrontimgurl,cardbackimgurl, createdby, createdat)
                                          VALUES ($1, $2, $3, $4)
                                         RETURNING *;`, [base64Images[0], base64Images[1], info.userid, new Date()]);
         if (res.length == 0) {
@@ -134,23 +134,19 @@ module.exports = {
     getcardlists: async (info) => {
         try {
             let cardRows = await db.getResults(`
-                                                SELECT cardid,companyname, companydetails, companyemail, compnaywebsite,comapanyphoneno1, comapanyphoneno2, companyaddress, companygstin,cardfrontimgurl,cardbackimgurl,c.createdby,concat(u.firstname,'-',u.lastname) AS createdname,c.createdat,extractedjson,country,city,state,pincode,fax,c.tagid,c.groupid,t.tagname as tag,g.groupname as groupname,note
-                                                  FROM cardmaster c
-                                                  JOIN usermaster u ON u.userid=c.createdby
-                                                  left join groupmaster g on g.groupid = c.groupid 
-                                                  left join tagmaster t on t.tagid = c.tagid 
-                                                  WHERE c.isdelete = false and c.createdby = ${info.userid}
-                                                  ORDER BY c.cardid asc
-                                             `);
+                                                 SELECT cardid,companyname, companydetails, companyemail, compnaywebsite,comapanyphoneno1, comapanyphoneno2, companyaddress, companygstin,cardfrontimgurl,cardbackimgurl,createdby,createdat,extractedjson,country,city,state,pincode,fax 
+                                                  FROM cardmaster
+                                                  WHERE isdelete = false
+                                                            `);
 
             if (cardRows.length === 0) {
                 return { success: 0, msg: "list not found" }
                 return res.status(404).json({ error: 'Card not found' });
             }
 
-                        // Fetch person details
+            // Fetch person details
             let persons = await db.getResults(`
-                                                        SELECT cardid,cardpersonsid,fullname, phone1, email, designation
+                                                        SELECT cardid, fullname, phone1, email, designation
                                                         FROM cardpersonsdetails
                                                         WHERE isdelete = false
                                                         `);
@@ -158,7 +154,6 @@ module.exports = {
             const personsByCard = persons.reduce((acc, person) => {
                 if (!acc[person.cardid]) acc[person.cardid] = [];
                 acc[person.cardid].push({
-                  "cardpersonsid":person.cardpersonsid,
                     "Name": person.fullname,
                     "Phone Number": person.phone1,
                     "Email": person.email,
@@ -180,93 +175,15 @@ module.exports = {
                 "Fax":card.fax,
                 "Company  Email": card.companyemail,
                 "Web Address": card.compnaywebsite,
-                "Companys Work Details": card.companydetails,
+                "Company's Work Details": card.companydetails,
                 "GSTIN": card.companygstin,
                 "Is Base64" : 1,
-                "cardFrontImageBase64": card.cardfrontimgurl ? card.cardfrontimgurl.toString('base64') : null,
-                "cardBackImageBase64": card.cardbackimgurl ? card.cardbackimgurl.toString('base64') : null,
+                "Card Front Image": card.cardfrontimgurl ? card.cardfrontimgurl.toString('base64') : null,
+                "Card Back Image": card.cardbackimgurl ? card.cardbackimgurl.toString('base64') : null,
                 "Created By": card.createdby,
                 "Created At": moment(card.createdat).format('YYYY-MM-DD HH:mm:ss'),
-                "Extracted JSON": card.extractedjson,
-                "groupid":card.groupid,
-                "tagid":card.tagid,
-                "group":card.groupname,
-                "tag":card.tag,
-                "note":card.note
+                "Extracted JSON": card.extractedjson
             }));
-            return { success: 1, data:jsonResponse };
-
-        } catch (error) {
-            return { success: 0, msg: error.message, error: error.message };
-        }
-    },
-
-    getallcardlists: async () => {
-        try {
-            let cardRows = await db.getResults(`
-                                                 SELECT cardid,companyname, companydetails, companyemail, compnaywebsite,comapanyphoneno1, comapanyphoneno2, companyaddress, companygstin,cardfrontimgurl,cardbackimgurl,c.createdby,concat(u.firstname,'-',u.lastname) AS createdname,c.createdat,extractedjson,country,city,state,pincode,fax,c.tagid,c.groupid,t.tagname as tag,g.groupname as groupname,note
-                                                  FROM cardmaster c
-                                                  JOIN usermaster u ON u.userid=c.createdby
-                                                  left join groupmaster g on g.groupid = c.groupid 
-                                                  left join tagmaster t on t.tagid = c.tagid 
-                                                  WHERE c.isdelete = false
-                                                  ORDER BY c.cardid asc
-                                                            `);
-
-            if (cardRows.length === 0) {
-                return { success: 0, msg: "list not found" }
-                return res.status(404).json({ error: 'Card not found' });
-            }
-
-            // Fetch person details
-            let persons = await db.getResults(`
-                                                        SELECT cardid,cardpersonsid,fullname, phone1, email, designation
-                                                        FROM cardpersonsdetails
-                                                        WHERE isdelete = false
-                                                        `);
-
-            const personsByCard = persons.reduce((acc, person) => {
-                if (!acc[person.cardid]) acc[person.cardid] = [];
-                acc[person.cardid].push({
-                  "cardpersonsid":person.cardpersonsid,
-                    "Name": person.fullname,
-                    "Phone Number": person.phone1,
-                    "Email": person.email,
-                    "Position": person.designation
-                });
-                return acc;
-            }, {});
-            // Compose JSON
-            const jsonResponse = cardRows.map(card => ({
-                "Card ID": card.cardid,
-                "Company Name": card.companyname,
-                "Person details": personsByCard[card.cardid] || [],
-                "Company Phone Number": [card.comapanyphoneno1, card.comapanyphoneno2].filter(Boolean).join(', '),
-                "Company Address": [card.companyaddress],
-                "Country":card.country,
-                "State":card.state,
-                "City":card.city,
-                "Pincode":card.pincode,
-                "Fax":card.fax,
-                "Company Email": card.companyemail,
-                "Web Address": card.compnaywebsite,
-                "Companys Work Details": card.companydetails,
-                "GSTIN": card.companygstin,
-                "Is Base64" : 1,
-                "cardFrontImageBase64": card.cardfrontimgurl ? card.cardfrontimgurl.toString('base64') : null,
-                "cardBackImageBase64": card.cardbackimgurl ? card.cardbackimgurl.toString('base64') : null,
-                "Created By": card.createdby,
-                "createdByName":card.createdname,
-                "Created At": moment(card.createdat).format('YYYY-MM-DD HH:mm:ss'),
-                "Extracted JSON": card.extractedjson,
-                "groupid":card.groupid,
-                "tagid":card.tagid,
-                "group":card.groupname,
-                "tag":card.tag,
-                "note":card.note
-            }));
-            console.log("response sent ----------");
-            
             return { success: 1, data:jsonResponse };
 
         } catch (error) {
@@ -277,12 +194,9 @@ module.exports = {
     getcardlistsbyid: async (id) => {
         try {
             let cardRows = await db.getResults(`
-                                                 SELECT cardid,companyname, companydetails, companyemail, compnaywebsite,comapanyphoneno1, comapanyphoneno2, companyaddress, companygstin,cardfrontimgurl,cardbackimgurl,c.createdby,concat(u.firstname,'-',u.lastname) AS createdname ,c.createdat,extractedjson,country,city,state,pincode,fax,c.tagid,c.groupid,t.tagname as tag,g.groupname as groupname,note
-                                                  FROM cardmaster c
-                                                  JOIN usermaster u ON u.userid=c.createdby
-                                                  left join groupmaster g on g.groupid = c.groupid 
-                                                  left join tagmaster t on t.tagid = c.tagid 
-                                                  WHERE c.isdelete = false and c.cardid = '${id}'
+                                                 SELECT cardid,companyname, companydetails, companyemail, compnaywebsite,comapanyphoneno1, comapanyphoneno2, companyaddress, companygstin,cardfrontimgurl,cardbackimgurl,createdby,createdat,extractedjson 
+                                                  FROM cardmaster
+                                                  WHERE isdelete = false and cardid = '${id}'
                                                             `);
 
             if (cardRows.length === 0) {
@@ -292,7 +206,7 @@ module.exports = {
 
             // Fetch person details
             let persons = await db.getResults(`
-                                                        SELECT cardid,cardpersonsid,fullname, phone1, email, designation
+                                                        SELECT cardid, fullname, phone1, email, designation
                                                         FROM cardpersonsdetails
                                                         WHERE isdelete = false and cardid = '${id}'
                                                         `);
@@ -300,7 +214,6 @@ module.exports = {
             const personsByCard = persons.reduce((acc, person) => {
                 if (!acc[person.cardid]) acc[person.cardid] = [];
                 acc[person.cardid].push({
-                  "cardpersonsid":person.cardpersonsid,
                     "Name": person.fullname,
                     "Phone Number": person.phone1,
                     "Email": person.email,
@@ -315,27 +228,16 @@ module.exports = {
                 "Person details": personsByCard[card.cardid] || [],
                 "Company Phone Number": [card.comapanyphoneno1, card.comapanyphoneno2].filter(Boolean).join(', '),
                 "Company Address": [card.companyaddress],
-                "Country":card.country,
-                "State":card.state,
-                "City":card.city,
-                "Pincode":card.pincode,
-                "Fax":card.fax,
-                "Company Email": card.companyemail,
+                "Company  Email": card.companyemail,
                 "Web Address": card.compnaywebsite,
-                "Companys Work Details": card.companydetails,
+                "Company's Work Details": card.companydetails,
                 "GSTIN": card.companygstin,
                 "Is Base64" : 1,
-                "cardFrontImageBase64": card.cardfrontimgurl ? card.cardfrontimgurl.toString('base64') : null,
-                "cardBackImageBase64": card.cardbackimgurl ? card.cardbackimgurl.toString('base64') : null,
+                "Card Front Image": card.cardfrontimgurl ? card.cardfrontimgurl.toString('base64') : null,
+                "Card Back Image": card.cardbackimgurl ? card.cardbackimgurl.toString('base64') : null,
                 "Created By": card.createdby,
-                "createdByName":card.createdname,
                 "Created At": moment(card.createdat).format('YYYY-MM-DD HH:mm:ss'),
-                "Extracted JSON": card.extractedjson,
-                "groupid":card.groupid,
-                "tagid":card.tagid,
-                "group":card.groupname,
-                "tag":card.tag,
-                "note":card.note
+                "Extracted JSON": card.extractedjson
             }));
             return { success: 1, data:jsonResponse };
 
@@ -350,30 +252,23 @@ module.exports = {
     await db.beginTransaction(client);
 
     // Insert into cardmaster
-    console.log("----djdasjdslkjd",json);
-    
     const result = await client.query(
       `INSERT INTO cardmaster (
         groupid, tagid, companyname, companyemail, compnaywebsite,
-        comapanyphoneno1, companyaddress, cardfronts3url, cardbacks3url,
-        createdby, createdat,country,state,city,pincode,companydetails,ismanualentery
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),$11,$12,$13,$14,$15,true) RETURNING cardid;`,
+        comapanyphoneno1, companyaddress, cardfrontimgurl, cardbackimgurl,
+        createdby, createdat
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) RETURNING cardid;`,
       [
-        json["groupid"],
-        json["tagid"],
+        json["Group ID"],
+        json["Tag ID"],
         json["Company Name"],
-        json["Company Email"],
+        json["Company  Email"],
         json["Web Address"],
         json["Company Phone Number"],
         json["Company Address"],
         base64Images[0] || null,
         base64Images[1] || null,
-        info.userid,
-        json["Country"],
-        json["State"],
-        json["City"],
-        json["Pincode"],
-        json["Companys Work Details"],
+        info.userid
       ]
     );
 
@@ -413,47 +308,29 @@ updateCardWithDetails: async (cardid, json, info) => {
 
     // ✅ 1. Update cardmaster (no images)
     const cardRes = await client.query(
-  `UPDATE cardmaster SET
-    groupid = $1,
-    tagid = $2,
-    companyname = $3,
-    companydetails = $4,
-    companyemail = $5,
-    compnaywebsite = $6,
-    comapanyphoneno1 = $7,
-    comapanyphoneno2 = '',
-    companyaddress = $8,
-    companygstin = $9,
-    city = $10,
-    state = $11,
-    country = $12,
-    pincode = $13,
-    fax = $14,
-    updatedby = $15,
-    updatedat = NOW(),
-    note = $17
-  WHERE cardid = $16`,
-  [
-    json["groupid"],                     // $1
-    json["tagid"],                       // $2
-    json["Company Name"],                 // $3
-    json["Companys Work Details"],        // $4
-    json["Company Email"],               // $5
-    json["Web Address"],                  // $6
-    json["Company Phone Number"],         // $7
-    json["Company Address"].join(", "),   // $8 (Convert array to string)
-    json["GSTIN"],                        // $9
-    json["City"],                         // $10
-    json["State"],                        // $11
-    json["Country"],                      // $12
-    json["Pincode"],                      // $13
-    json["Fax"],                          // $14
-    info.userid,                          // $15
-    json["Card ID"],
-    json['note']                     // $16
-  ]
-);
-
+      `UPDATE cardmaster SET
+        groupid = $1,
+        tagid = $2,
+        companyname = $3,
+        companyemail = $4,
+        compnaywebsite = $5,
+        comapanyphoneno1 = $6,
+        companyaddress = $7,
+        updatedby = $8,
+        updatedat = NOW()
+      WHERE cardid = $9`,
+      [
+        json["Group ID"],
+        json["Tag ID"],
+        json["Company Name"],
+        json["Company  Email"],
+        json["Web Address"],
+        json["Company Phone Number"],
+        json["Company Address"],
+        info.userid,
+        cardid
+      ]
+    );
 
     if (cardRes.rowCount === 0) {
       throw new Error(`Sorry can't find card with ID: ${cardid}`);
@@ -517,7 +394,7 @@ updateCardWithDetails: async (cardid, json, info) => {
         incomingPersonIds.push(insertPerson.rows[0].cardpersonsid);
       }
     }
-
+    console.log("-------- this is the list --- ",incomingPersonIds);
     
     // ✅ 3. Soft delete stale rows
     if (incomingPersonIds.length > 0) {
@@ -547,50 +424,6 @@ updateCardWithDetails: async (cardid, json, info) => {
   }
 },
 
-
-deleteCardById: async (cardid, info) => {
-  try {
-    const result = await db.getResults(
-      `UPDATE cardmaster
-       SET isdelete = true, updatedby = $1, updatedat = NOW()
-       WHERE cardid = $2
-       RETURNING cardid;`,
-      [info.userid, cardid]
-    );
-
-    if (result.length === 0) {
-      return { success: 0, msg: "Card not found or already deleted" };
-    }
-
-    return { success: 1, data: result[0] };
-  } catch (error) {
-    return { success: 0, msg: error.message };
-  }
-},
-
-updateCardTagGroupNote: async (cardid, tagid, groupid, note, info) => {
-  try {
-    const result = await db.getResults(
-      `UPDATE cardmaster
-       SET tagid = $1,
-           groupid = $2,
-           note = $3,
-           updatedby = $4,
-           updatedat = NOW()
-       WHERE cardid = $5
-       RETURNING cardid`,
-      [tagid || null, groupid || null, note || null, info.userid, cardid]
-    );
-
-    if (result.length === 0) {
-      return { success: 0, msg: "Card not found or not updated" };
-    }
-
-    return { success: 1, data: result[0] };
-  } catch (error) {
-    return { success: 0, msg: error.message };
-  }
-}
 
 
 

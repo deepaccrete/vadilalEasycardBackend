@@ -12,15 +12,10 @@ const upload = multer({
 });
 
 
-router.post('/uploadcard',jwtMiddleware,upload.array('images', 2),cardcontroller.newUploadImagesBase65)
+router.post('/uploadcard',jwtMiddleware,upload.array('images', 2),cardcontroller.uploadImagesBase65 )
 router.post('/getcardlists',jwtMiddleware,cardcontroller.getcardlists);
-router.post('/getallcardlists',jwtMiddleware,cardcontroller.getallcardlists);
 router.post('/savecard',jwtMiddleware,upload.array('images', 2),cardcontroller.saveCardWithDetails);
 router.post('/updatecard',jwtMiddleware,cardcontroller.updateCardWithDetails);
-router.post('/deletecard/:cardid', jwtMiddleware, cardcontroller.deleteCard);
-router.post('/updateCardTagGroupNote', jwtMiddleware, cardcontroller.updateCardTagGroupNote);
-
-
 
 module.exports = {
     path: '/card',

@@ -7,37 +7,106 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const date = moment();
 
 module.exports = {
-    findUser: async (email, password) => {
-        
-        try {
-            // Fetch userid and password
-            let res = await db.getResults(`
-                                                SELECT  u."userid",
-                                                        u."firstname",
-                                                        u."lastname",
-                                                        u."email",
-                                                        u."roleid",
-                                                        r."rolename",
-                                                        u."designation",
-                                                        u."phoneno"
-                                                    FROM "usermaster" u
-                                                    JOIN "rolemaster" r ON r."roleid" = u."roleid"
-                                                    WHERE u."email" = $1 
-                                                    AND u."password" = $2 
-                                                    AND u."isdelete" = false 
-                                                    AND u."isactive" = true
-                                            `, [email,password]);
-                                        
-            if (!res?.length) return { success: 0, msg: "User not found" };
 
-            const user = res[0];
-            // if (user.email !== email) return { success: 0, msg: "Invalid Authentication" }
-            // if (!user.Password?.length) return { success: 0, msg: "Invalid Authentication" };
-            return { success: 1, data: user };
-        } catch (error) {
-            return { success: 0, msg: error.message, error: error.message };
+    // Updated findUser function in your model
+findUser: async (email, password) => {
+    try {
+        // First check if user exists with the given email
+        let userCheck = await db.getResults(`
+            SELECT  u."userid",
+                    u."firstname",
+                    u."lastname",
+                    u."email",
+                    u."roleid",
+                    r."rolename",
+                    u."designation",
+                    u."phoneno",
+                    u."password"
+                FROM "usermaster" u
+                JOIN "rolemaster" r ON r."roleid" = u."roleid"
+                WHERE u."email" = $1 
+                AND u."isdelete" = false 
+                AND u."isactive" = true
+        `, [email]);
+        
+        // If no user found with this email
+        if (!userCheck?.length) {
+            return { success: 0, msg: "User not found" };
         }
-    },
+        
+        const user = userCheck[0];
+        
+        // Check if password matches
+        if (user.password !== password) {
+            return { success: 0, msg: "Invalid password" };
+        }
+        
+        // Remove password from response data for security
+        delete user.password;
+        
+        return { success: 1, data: user };
+        
+    } catch (error) {
+        return { success: 0, msg: error.message, error: error.message };
+    }
+},
+
+
+    adminUserFind: async (email, password) => {
+    try {
+        // First check if user exists with the given email and required roles
+        let userCheck = await db.getResults(`
+            SELECT  u."userid",
+                    u."firstname",
+                    u."lastname",
+                    u."email",
+                    u."roleid",
+                    r."rolename",
+                    u."designation",
+                    u."phoneno",
+                    u."password"
+                FROM "usermaster" u
+                JOIN "rolemaster" r ON r."roleid" = u."roleid"
+                WHERE u."email" = $1 
+                AND u."isdelete" = false 
+                AND u."isactive" = true
+                AND r."roleid" IN (1, 3)
+        `, [email]);
+        
+        // If no user found with this email and required roles
+        if (!userCheck?.length) {
+            // Check if user exists but doesn't have admin privileges
+            let userExistsCheck = await db.getResults(`
+                SELECT u."userid" 
+                FROM "usermaster" u
+                WHERE u."email" = $1 
+                AND u."isdelete" = false 
+                AND u."isactive" = true
+            `, [email]);
+            
+            if (userExistsCheck?.length) {
+                return { success: 0, msg: "Access denied: Admin privileges required" };
+            } else {
+                return { success: 0, msg: "User not found" };
+            }
+        }
+        
+        const user = userCheck[0];
+        
+        // Check if password matches
+        if (user.password !== password) {
+            return { success: 0, msg: "Invalid password" };
+        }
+        
+        // Remove password from response data for security
+        delete user.password;
+        
+        return { success: 1, data: user };
+        
+    } catch (error) {
+        return { success: 0, msg: error.message, error: error.message };
+    }
+},
 
     userToken: async (userId) => {
         return await db.getResults(`SELECT ujt.userid, ujt.token FROM user_jwt_tokens ujt WHERE ujt.userid = ?;`, [userId]);
@@ -89,17 +158,25 @@ module.exports = {
     //     return await db.getResults(sql, email, userid);
     // },
 
-    getPermissions: async (userId) => {
-        return await db.getResults(`SELECT mm.moduleid, mm.modulename, mm.applicablefor, mm.parentmodid, mm.modurl, mm.displayorder, mm.moduleicon
-            FROM usermaster um
-            JOIN webpermissionpolicymapping wpm ON wpm.policyid = um.policyid AND wpm.isdeleted = 0
-            JOIN modulemaster mm ON mm.moduleid = wpm.moduleid AND mm.isdeleted = 0
-            WHERE um.isdeleted=0 AND um.userid = ? AND mm.applicablefor = 1 GROUP BY mm.moduleid;`,
-            [userId])
-    },
+    getAppSetting: async () => {
+  try {
+    const res = await db.getResults(`
+      SELECT isadd, isdeletecard, isedit, isshare, isaddgroup, isaddtag
+      FROM appsetting
+      WHERE isdelete = false
+      ORDER BY createdat DESC
+      LIMIT 1
+    `);
 
-    availLocPermission: async (data) => {
-        return await db.getResults(`SELECT lm.locationid, lm.locationname, lm.franchisetype FROM userlocation ul JOIN locationmaster lm ON lm.locationid = ul.locationid AND lm.isdeleted = 0 WHERE ul.userid = ? AND ul.companyid = ? AND ul.isdeleted = 0;`, [data.userId, data.companyId]);
+    if (!res?.length) {
+      return { success: 0, msg: "No active app setting found" };
     }
+
+    return { success: 1, data: res[0] };
+  } catch (error) {
+    return { success: 0, msg: error.message, error: error.message };
+  }
+},
+
 
 }

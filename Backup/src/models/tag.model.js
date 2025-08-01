@@ -12,11 +12,11 @@ module.exports = {
             // Fetch userid and password
             let res = await db.getResults(`INSERT INTO tagmaster (tagname, createdby, createdat)
                                          VALUES ($1, $2, $3)
-                                        RETURNING *;`, [body.tagname, info.userid, new Date()]);
-            if (res.length === 0) {
+                                        RETURNING *;`, [body.tagname, info.userid]);
+            if (res.rows.length === 0) {
                 return { success: 0, message: "Not inserted" };
             } else {
-                return { success: 1, data: res[0] };
+                return { success: 1, data: res.rows[0] };
             }
             return { success: 1, data: res };
         } catch (error) {

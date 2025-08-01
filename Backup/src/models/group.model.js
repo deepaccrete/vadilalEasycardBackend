@@ -10,15 +10,16 @@ module.exports = {
                 return { success: 409, msg: "Groug already exists" };
             }
 
+
+            // Fetch userid and password
             let res = await db.getResults(`INSERT INTO groupmaster (groupname, createdby, createdat)
                                          VALUES ($1, $2, $3)
                                         RETURNING *;`, [body.groupname, info.userid, new Date()]);
-            console.log("---- ",res);
-            
-            if (res.length === 0) {
+
+            if (res.rows.length === 0) {
                 return { success: 0, message: "Not inserted" };
             } else {
-                return { success: 1, data: res[0] };
+                return { success: 1, data: res.rows[0] };
             }
 
             return { success: 1, data: res };
